@@ -22,9 +22,3 @@ echo "PCA preparation complete."
 echo "Step 5: Training the model..."
 python3 ../model/train_model.py
 echo "Model training complete."
-
-echo "Step 6: Evaluating the model..."
-python3 ../model/evaluate_model.py
-echo "Model evaluation complete."
-
-echo "All steps completed successfully!"

@@ -1,5 +1,0 @@
-MSE: 5.5302
-RMSE: 2.3516
-MAE: 1.3350
-R-squared: 0.9982
-Next day prediction: $178.95

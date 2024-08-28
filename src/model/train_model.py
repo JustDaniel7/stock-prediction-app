@@ -18,11 +18,11 @@ from src.analysis import feature_engineering
 import logging
 
 # Configuration
-log_dir = '../../models/logs/'
+log_dir = '../../models/logs/training_logs/'
 model_save_dir = '../../models/saved_models/'
-sequence_length = 30  # Reduced from 60
+sequence_length = 30
 batch_size = 32
-pca_components = 5
+pca_components = 10  # This will be the input size for the LSTM model
 
 # Ensure directories exist
 os.makedirs(log_dir, exist_ok=True)
@@ -62,21 +62,21 @@ def train_model_for_company(file_path):
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # Model configuration
-    input_size = X.shape[2]
-    hidden_size = 64  # Simplified model
+    input_size = pca_components  # The number of PCA components becomes the input size
+    hidden_size = 128
     num_layers = 2
     output_size = 1
-    dropout = 0.2  # Reduced dropout
+    dropout = 0.2
 
     # Simplified LSTM model
     model = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
     fc = nn.Linear(hidden_size, output_size)
 
     criterion = nn.MSELoss()
-    optimizer = optim.Adam([*model.parameters(), *fc.parameters()], lr=0.0005)  # Reduced learning rate
+    optimizer = optim.Adam([*model.parameters(), *fc.parameters()], lr=0.0001)  # Reduced learning rate
 
     # Training loop
-    epochs = 50  # Increased epochs
+    epochs = 50  # Increased epochs for better training
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0.0

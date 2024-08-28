@@ -3,8 +3,8 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.decomposition import PCA
 
-PCA_COMPONENTS = 7  # Number of principal components
-SEQUENCE_LENGTH = 60
+PCA_COMPONENTS = 10  # Number of principal components
+SEQUENCE_LENGTH = 30
 
 
 def scale_and_reduce(df, pca_components=PCA_COMPONENTS):
