@@ -43,7 +43,7 @@ def predict_next_day(company_code):
 
     # Load the trained model
     model_path = os.path.join(model_save_dir, f"{company_code}_model.pt")
-    model, fc, target_scaler = load_model(model_path)
+    model, target_scaler = load_model(model_path)
 
     # Search for the appropriate CSV file using a wildcard pattern
     csv_pattern = os.path.join(data_dir, f"{company_code}_*.csv")

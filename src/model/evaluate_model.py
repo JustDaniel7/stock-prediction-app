@@ -103,7 +103,7 @@ def evaluate_model(company_code):
     plt.xlabel("Time")
     plt.ylabel("Stock Price")
     plt.legend()
-    plt.savefig(f"../../models/eval_plots/{company_code}_evaluation_plot.png")
+    plt.savefig(f"models/eval_plots/{company_code}_evaluation_plot.png")
     plt.close()
 
     return mse, rmse, mae, r2

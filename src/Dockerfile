@@ -22,4 +22,4 @@ RUN ls -R /app
 ENV PYTHONPATH=/app
 
 # Set the default command to run the script
-CMD ["bash", "src/full_cycle.sh"]
+CMD ["bash", "src/scripts/eval_predict.sh"]
