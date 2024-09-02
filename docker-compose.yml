@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  full:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: stock-prediction-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - ENVIRONMENT=development
+
+  frontend:
+    build:
+      context: ./app/stock-prediction-frontend
+      dockerfile: Dockerfile
+    container_name: stock-prediction-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=https://app:8000
+    depends_on:
+      - full

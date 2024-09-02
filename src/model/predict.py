@@ -1,15 +1,13 @@
 import os
 import sys
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from sklearn.preprocessing import MinMaxScaler
 import logging
 import glob
 
 # Calculate the absolute path to the project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 sys.path.append(project_root)
 
 from src.analysis.pca_preparation import scale_and_reduce, create_sequences
@@ -17,8 +15,8 @@ from src.analysis import feature_engineering
 import matplotlib.pyplot as plt
 
 # Configuration
-model_save_dir = '../../models/saved_models/'
-data_dir = '../../data/processed/'
+model_save_dir = os.path.join(project_root, 'models/saved_models/')
+data_dir = os.path.join(project_root, 'data/processed/')
 sequence_length = 30
 pca_components = 10
 

@@ -1,0 +1,22 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            - echo "Frontend pre-build phase"
+        build:
+          commands:
+            - echo "Frontend build phase"
+      artifacts:
+        baseDirectory: /
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+      customHeaders:
+        - pattern: "**/*"
+          headers:
+            - key: "X-Frame-Options"
+              value: "DENY"
