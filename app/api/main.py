@@ -1,11 +1,6 @@
-import sys
-import os
 from fastapi import FastAPI
-from app.api.routes import router as api_router
+from routes import router as api_router
 from fastapi.middleware.cors import CORSMiddleware
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
-sys.path.append(project_root)
 
 app = FastAPI()
 

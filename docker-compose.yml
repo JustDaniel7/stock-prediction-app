@@ -1,26 +1,34 @@
 version: '3.8'
 
 services:
-  full:
-    build:
-      context: ./
-      dockerfile: Dockerfile
-    container_name: stock-prediction-app
+  backend-api:
+    build: ./app/api
+    container_name: backend-api
     ports:
       - "8000:8000"
-    volumes:
-      - .:/app
-    environment:
-      - ENVIRONMENT=development
+    depends_on:
+      - ml-model
+    networks:
+      - app-network
 
   frontend:
-    build:
-      context: ./app/stock-prediction-frontend
-      dockerfile: Dockerfile
-    container_name: stock-prediction-frontend
+    build: ./app/stock-prediction-frontend
+    container_name: frontend
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=https://app:8000
     depends_on:
-      - full
+      - backend-api
+    networks:
+      - app-network
+
+  ml-model:
+    build: ./src
+    container_name: ml-model
+    volumes:
+      - ./data:/app/data
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
