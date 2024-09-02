@@ -8,6 +8,8 @@ services:
       - "8000:8000"
     depends_on:
       - ml-model
+    volumes:
+      - ./src:/app/src  # Mount the src directory to the backend-api container
     networks:
       - app-network
 
@@ -26,6 +28,8 @@ services:
     container_name: ml-model
     volumes:
       - ./data:/app/data
+      - ./src:/app/src  # Mount the src directory to the ml-model container
+      - ./models:/app/models
     networks:
       - app-network
 

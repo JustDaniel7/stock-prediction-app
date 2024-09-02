@@ -1,25 +1,20 @@
 import os
-import sys
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import MinMaxScaler
-
-# Calculate the absolute path to the project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-# Add it to sys.path
-sys.path.append(project_root)
-
-from src.analysis.pca_preparation import scale_and_reduce, create_sequences
-from src.analysis import feature_engineering
 import logging
+import glob
+from src.model.model import MyLSTMModel
+
 
 # Configuration
-log_dir = '../../models/logs/training_logs/'
-model_save_dir = '../../models/saved_models/'
+BASE_DIR = '/app'  # This should be the root directory in your Docker container
+log_dir = os.path.join(BASE_DIR, 'models', 'logs', 'training_logs')
+model_save_dir = os.path.join(BASE_DIR, 'models', 'saved_models')
+data_dir = os.path.join(BASE_DIR, 'data', 'processed')
 sequence_length = 30
 batch_size = 32
 pca_components = 10  # This will be the input size for the LSTM model
@@ -31,6 +26,9 @@ os.makedirs(model_save_dir, exist_ok=True)
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+from src.analysis.pca_preparation import scale_and_reduce, create_sequences
+from src.analysis import feature_engineering
 
 def add_features_to_df(df):
     return feature_engineering.add_all_features(df)
@@ -64,16 +62,14 @@ def train_model_for_company(file_path):
     # Model configuration
     input_size = pca_components  # The number of PCA components becomes the input size
     hidden_size = 128
-    num_layers = 2
     output_size = 1
-    dropout = 0.2
+    dropout = 0.3
 
-    # Simplified LSTM model
-    model = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
-    fc = nn.Linear(hidden_size, output_size)
+    # Instantiate the model
+    model = MyLSTMModel(input_size, hidden_size, output_size, dropout)
 
     criterion = nn.MSELoss()
-    optimizer = optim.Adam([*model.parameters(), *fc.parameters()], lr=0.0001)  # Reduced learning rate
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)  # Reduced learning rate
 
     # Training loop
     epochs = 50  # Increased epochs for better training
@@ -83,8 +79,7 @@ def train_model_for_company(file_path):
 
         for X_batch, y_batch in dataloader:
             optimizer.zero_grad()
-            _, (hidden, _) = model(X_batch)
-            outputs = fc(hidden[-1])
+            outputs = model(X_batch)
             loss = criterion(outputs.squeeze(), y_batch)
             loss.backward()
             optimizer.step()
@@ -103,17 +98,36 @@ def train_model_for_company(file_path):
     # Save the trained model
     model_save_path = os.path.join(model_save_dir, f"{company_code}_model.pt")
     torch.save({
-        'lstm_state_dict': model.state_dict(),
-        'fc_state_dict': fc.state_dict(),
+        'model_state_dict': model.state_dict(),
         'target_scaler': target_scaler
     }, model_save_path)
     logger.info(f"Model saved to {model_save_path}")
 
 def main():
-    import glob
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Contents of {BASE_DIR}:")
+    for root, dirs, files in os.walk(BASE_DIR):
+        level = root.replace(BASE_DIR, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        logger.info(f"{indent}{os.path.basename(root)}/")
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            logger.info(f"{subindent}{f}")
+
+    logger.info(f"Checking if {data_dir} exists: {os.path.exists(data_dir)}")
+
+    if not os.path.exists(data_dir):
+        logger.error(f"Directory {data_dir} does not exist.")
+        return
+
+    csv_files = glob.glob(os.path.join(data_dir, '*.csv'))
+
+    if not csv_files:
+        logger.error(f"No CSV files found in {data_dir}")
+        return
 
     # Iterate over processed data files and train models
-    for file_path in glob.glob('../../data/processed/*.csv'):
+    for file_path in csv_files:
         try:
             train_model_for_company(file_path)
         except Exception as e:

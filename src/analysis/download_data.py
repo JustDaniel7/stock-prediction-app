@@ -1,12 +1,10 @@
 import yfinance as yf
 import os
 from datetime import datetime, timedelta
-import schedule
-import time
 import shutil
 
 # Directory for raw data
-raw_data_dir = '../../data/raw'
+raw_data_dir = 'src/data/raw'
 
 # Create the raw data directory if it doesn't exist
 os.makedirs(raw_data_dir, exist_ok=True)
@@ -86,15 +84,7 @@ def download_data_now():
         except ValueError as e:
             print(e)
 
-def daily_data_download():
-    """
-    Function to download data daily for all tickers.
-    """
-    download_data_now()
-
 if __name__ == "__main__":
     # Download data right now
     download_data_now()
 
-    # Schedule the script to run every day at 8:00 AM starting tomorrow
-    schedule.every().day.at("08:00").do(daily_data_download)

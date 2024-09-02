@@ -3,13 +3,8 @@ import sys
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.preprocessing import MinMaxScaler
-
-# Calculate the absolute path to the project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-sys.path.append(project_root)
+from src.model.model import MyLSTMModel
 
 from src.analysis.pca_preparation import scale_and_reduce, create_sequences
 from src.analysis import feature_engineering
@@ -18,8 +13,11 @@ import matplotlib.pyplot as plt
 import glob
 
 # Configuration
-model_save_dir = '../../models/saved_models/'
-data_dir = '../../data/processed/'
+BASE_DIR = '/app'  # This should be the root directory in your Docker container
+model_save_dir = os.path.join(BASE_DIR, 'models', 'saved_models')
+data_dir = os.path.join(BASE_DIR, 'data', 'processed')
+eval_plots_dir = os.path.join(BASE_DIR, 'models', 'eval_plots')
+eval_logs_dir = os.path.join(BASE_DIR, 'models', 'logs', 'evaluation_logs')
 sequence_length = 30
 pca_components = 10
 
@@ -33,27 +31,23 @@ def add_features_to_df(df):
 def load_model(model_path):
     checkpoint = torch.load(model_path)
 
-    # Assuming we're using the simplified LSTM model from the training script
     input_size = pca_components
     hidden_size = 128
-    num_layers = 2
-    dropout = 0.2
+    output_size = 1
+    dropout = 0.3
 
-    model = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
-    fc = nn.Linear(hidden_size, 1)
-
-    model.load_state_dict(checkpoint['lstm_state_dict'])
-    fc.load_state_dict(checkpoint['fc_state_dict'])
+    model = MyLSTMModel(input_size, hidden_size, output_size, dropout)
+    model.load_state_dict(checkpoint['model_state_dict'])
     target_scaler = checkpoint['target_scaler']
 
-    return model, fc, target_scaler
+    return model, target_scaler
 
 def evaluate_model(company_code):
     logger.info(f"Evaluating model for {company_code}...")
 
     # Load the trained model
     model_path = os.path.join(model_save_dir, f"{company_code}_model.pt")
-    model, fc, target_scaler = load_model(model_path)
+    model, target_scaler = load_model(model_path)
 
     # Search for the appropriate CSV file using a wildcard pattern
     csv_pattern = os.path.join(data_dir, f"{company_code}_*.csv")
@@ -84,8 +78,7 @@ def evaluate_model(company_code):
     # Make predictions
     model.eval()
     with torch.no_grad():
-        _, (hidden, _) = model(X)
-        predictions = fc(hidden[-1]).squeeze()
+        predictions = model(X).squeeze()
 
     # Inverse transform predictions and actual values
     predictions = target_scaler.inverse_transform(predictions.reshape(-1, 1)).flatten()
@@ -116,24 +109,47 @@ def evaluate_model(company_code):
     return mse, rmse, mae, r2
 
 def main():
-    # Iterate over all trained models and evaluate them
-    for model_file in os.listdir(model_save_dir):
-        if model_file.endswith("_model.pt"):
-            company_code = model_file.split("_model.pt")[0]
-            try:
-                mse, rmse, mae, r2 = evaluate_model(company_code)
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Contents of {BASE_DIR}:")
+    for root, dirs, files in os.walk(BASE_DIR):
+        level = root.replace(BASE_DIR, '').count(os.sep)
+        indent = ' ' * 4 * (level)
+        logger.info(f"{indent}{os.path.basename(root)}/")
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            logger.info(f"{subindent}{f}")
 
-                # Save the evaluation metrics to a log file for further analysis
-                with open(f"../../models/logs/evaluation_logs/{company_code}_evaluation_results.log", "a") as f:
-                    f.write(f"MSE: {mse:.4f}\n")
-                    f.write(f"RMSE: {rmse:.4f}\n")
-                    f.write(f"MAE: {mae:.4f}\n")
-                    f.write(f"R-squared: {r2:.4f}\n")
+    logger.info(f"Checking if {model_save_dir} exists: {os.path.exists(model_save_dir)}")
 
-            except Exception as e:
-                logger.error(f"Error evaluating model for {company_code}: {str(e)}")
-                import traceback
-                logger.error(traceback.format_exc())
+    if not os.path.exists(model_save_dir):
+        logger.error(f"Directory {model_save_dir} does not exist.")
+        return
+
+    model_files = [f for f in os.listdir(model_save_dir) if f.endswith("_model.pt")]
+
+    if not model_files:
+        logger.error(f"No model files found in {model_save_dir}")
+        return
+
+    for model_file in model_files:
+        company_code = model_file.split("_model.pt")[0]
+        try:
+            mse, rmse, mae, r2 = evaluate_model(company_code)
+
+            # Ensure the evaluation logs directory exists
+            os.makedirs(eval_logs_dir, exist_ok=True)
+
+            # Save the evaluation metrics to a log file for further analysis
+            with open(os.path.join(eval_logs_dir, f"{company_code}_evaluation_results.log"), "a") as f:
+                f.write(f"MSE: {mse:.4f}\n")
+                f.write(f"RMSE: {rmse:.4f}\n")
+                f.write(f"MAE: {mae:.4f}\n")
+                f.write(f"R-squared: {r2:.4f}\n")
+
+        except Exception as e:
+            logger.error(f"Error evaluating model for {company_code}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
     main()

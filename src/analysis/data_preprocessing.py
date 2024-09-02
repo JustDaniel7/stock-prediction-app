@@ -1,14 +1,12 @@
 import os
 import pandas as pd
 from datetime import datetime, timedelta
-import schedule
-import time
 import shutil
 
 
 # Directory for raw and processed data
-raw_data_dir = '../../data/raw'
-processed_data_dir = '../../data/processed'
+raw_data_dir = 'src/data/raw'
+processed_data_dir = 'src/data/processed'
 
 # Create necessary directories if they don't exist
 os.makedirs(raw_data_dir, exist_ok=True)
@@ -86,15 +84,7 @@ def preprocess_data_now():
     for ticker in tickers:
         preprocess_data(ticker, end_date)
 
-def daily_preprocessing():
-    """
-    Function to preprocess data daily for all tickers.
-    """
-    preprocess_data_now()
-
 if __name__ == "__main__":
     # Preprocess data right now
     preprocess_data_now()
 
-    # Schedule the script to run every day at 9:00 AM starting tomorrow
-    schedule.every().day.at("09:00").do(daily_preprocessing)

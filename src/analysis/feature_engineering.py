@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 
 # Directory for processed data
-processed_data_dir = '../../data/processed'
+processed_data_dir = 'src/data/processed'
 
 # List of tickers
 tickers = [

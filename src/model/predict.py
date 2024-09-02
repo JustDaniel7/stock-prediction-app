@@ -1,22 +1,18 @@
+import glob
+import logging
 import os
-import sys
+
 import pandas as pd
 import torch
-import torch.nn as nn
-import logging
-import glob
 
-# Calculate the absolute path to the project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
-sys.path.append(project_root)
-
+from src.model.model import MyLSTMModel
 from src.analysis.pca_preparation import scale_and_reduce, create_sequences
 from src.analysis import feature_engineering
-import matplotlib.pyplot as plt
 
 # Configuration
-model_save_dir = os.path.join(project_root, 'models/saved_models/')
-data_dir = os.path.join(project_root, 'data/processed/')
+BASE_DIR = '/app'  # This should be the root directory in your Docker container
+model_save_dir = os.path.join(BASE_DIR, 'models', 'saved_models')
+data_dir = os.path.join(BASE_DIR, 'data', 'processed')
 sequence_length = 30
 pca_components = 10
 
@@ -24,26 +20,23 @@ pca_components = 10
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def add_features_to_df(df):
     return feature_engineering.add_all_features(df)
 
 def load_model(model_path):
     checkpoint = torch.load(model_path)
 
-    # Assuming we're using the simplified LSTM model from the training script
     input_size = pca_components
     hidden_size = 128
-    num_layers = 2
-    dropout = 0.2
+    output_size = 1
+    dropout = 0.3
 
-    model = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
-    fc = nn.Linear(hidden_size, 1)
-
-    model.load_state_dict(checkpoint['lstm_state_dict'])
-    fc.load_state_dict(checkpoint['fc_state_dict'])
+    model = MyLSTMModel(input_size, hidden_size, output_size, dropout)
+    model.load_state_dict(checkpoint['model_state_dict'])
     target_scaler = checkpoint['target_scaler']
 
-    return model, fc, target_scaler
+    return model, target_scaler
 
 def predict_next_day(company_code):
     logger.info(f"Predicting next day's closing price for {company_code}...")
@@ -78,8 +71,7 @@ def predict_next_day(company_code):
     model.eval()
     with torch.no_grad():
         last_sequence = X[-1].unsqueeze(0)  # Get the last sequence to predict the next value
-        _, (hidden, _) = model(last_sequence)
-        next_day_prediction = fc(hidden[-1]).squeeze()
+        next_day_prediction = model(last_sequence).squeeze()
 
     # Inverse transform the prediction
     next_day_prediction = target_scaler.inverse_transform(next_day_prediction.reshape(-1, 1)).item()
@@ -88,15 +80,26 @@ def predict_next_day(company_code):
     return next_day_prediction
 
 def main():
-    # Iterate over all trained models and predict the next day's closing price
-    for model_file in os.listdir(model_save_dir):
+    if not os.path.exists(model_save_dir):
+        logger.error(f"Directory {model_save_dir} does not exist.")
+        return
+
+    model_files = [f for f in os.listdir(model_save_dir) if f.endswith("_model.pt")]
+
+    if not model_files:
+        logger.error(f"No model files found in {model_save_dir}")
+        return
+
+    for model_file in model_files:
         if model_file.endswith("_model.pt"):
             company_code = model_file.split("_model.pt")[0]
             try:
                 next_day_prediction = predict_next_day(company_code)
 
                 # Save the prediction result to a file or database for further analysis
-                with open(f"../../models/logs/prediction_logs/{company_code}_next_day_prediction.log", "a") as f:
+                log_dir = os.path.join(BASE_DIR, 'models', 'logs', 'prediction_logs')
+                os.makedirs(log_dir, exist_ok=True)
+                with open(os.path.join(log_dir, f"{company_code}_next_day_prediction.log"), "a") as f:
                     f.write(f"Next day prediction: ${next_day_prediction:.2f}\n")
 
             except Exception as e:
