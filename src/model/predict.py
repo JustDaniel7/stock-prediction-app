@@ -1,9 +1,12 @@
 import glob
 import logging
 import os
+import sys
 
 import pandas as pd
 import torch
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.model.model import MyLSTMModel
 from src.analysis.pca_preparation import scale_and_reduce, create_sequences
