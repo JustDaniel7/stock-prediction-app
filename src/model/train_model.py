@@ -1,5 +1,4 @@
 import os
-import sys
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -8,8 +7,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import MinMaxScaler
 import logging
 import glob
-
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.model.model import MyLSTMModel
 

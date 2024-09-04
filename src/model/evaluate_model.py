@@ -1,11 +1,9 @@
 import os
-import sys
+
 import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.model.model import MyLSTMModel
 from src.analysis.pca_preparation import scale_and_reduce, create_sequences

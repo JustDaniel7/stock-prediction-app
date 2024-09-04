@@ -1,25 +1,26 @@
+# Dockerfile
 FROM python:3.11-slim
 
-# Set the working directory to /app
-WORKDIR /app
+# Set the working directory to /app/src
+WORKDIR /app/src
 
-# Copy the requirements.txt file to /app in the container
-COPY requirements.txt .
+# Copy the requirements.txt file to /app/src in the container
+COPY src/requirements.txt .
 
 # Install the required Python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the source code into the container
-COPY . .
+# Copy the entire src directory into the container
+COPY src/ .
 
 # Create necessary directories
-RUN mkdir -p /app/models/saved_models /app/models/logs/prediction_logs /app/data/processed
+RUN mkdir -p /app/src/models/saved_models /app/src/models/logs/prediction_logs /app/src/data/processed
 
-# List contents of /app for debugging
-RUN ls -R /app
+# List contents of /app/src for debugging
+RUN ls -R /app/src
 
-# Set the PYTHONPATH environment variable to /app
-ENV PYTHONPATH=/app
+# Set the PYTHONPATH environment variable to include /app/src
+ENV PYTHONPATH=/app:$PYTHONPATH
 
 # Set the default command to run the script
 CMD ["bash", "full_cycle.sh"]
