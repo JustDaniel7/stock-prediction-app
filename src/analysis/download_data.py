@@ -1,26 +1,44 @@
 import yfinance as yf
-import os
 from datetime import datetime, timedelta
-import shutil
+import boto3
+from io import StringIO
 
-# Directory for raw data
-raw_data_dir = 'src/data/raw'
+# S3 bucket and folder configuration
+S3_BUCKET_NAME = 'your-bucket-name'  # Replace with your actual S3 bucket name
+S3_RAW_DATA_FOLDER = 'data/raw/'  # Folder path in S3 where raw data will be stored
 
-# Create the raw data directory if it doesn't exist
-os.makedirs(raw_data_dir, exist_ok=True)
+# Initialize the S3 client
+s3 = boto3.client('s3', region_name='eu-central-1')
 
-def delete_all_files(directory):
-    for filename in os.listdir(directory):
-        file_path = os.path.join(directory, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f"Failed to delete {file_path}. Reason: {e}")
+def upload_to_s3(bucket_name, key, df):
+    """
+    Upload a pandas DataFrame to S3 as a CSV.
 
-def download_stock_data(ticker, start_date, end_date, save_dir):
+    Args:
+        bucket_name (str): The S3 bucket name.
+        key (str): The key (path) in the S3 bucket.
+        df (pd.DataFrame): The DataFrame to upload.
+    """
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+    s3.put_object(Bucket=bucket_name, Key=key, Body=csv_buffer.getvalue())
+    print(f"Uploaded data to S3 at {key}")
+
+def delete_previous_day_s3_files(bucket_name, folder_prefix):
+    """
+    Delete all files in the S3 bucket from the previous day.
+
+    Args:
+        bucket_name (str): The S3 bucket name.
+        folder_prefix (str): The folder prefix to list the files.
+    """
+    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=folder_prefix)
+    if 'Contents' in response:
+        for obj in response['Contents']:
+            print(f"Deleting {obj['Key']}")
+            s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
+
+def download_stock_data(ticker, start_date, end_date):
     """
     Download historical stock data from Yahoo Finance for a specific ticker.
 
@@ -28,7 +46,9 @@ def download_stock_data(ticker, start_date, end_date, save_dir):
         ticker (str): Stock ticker symbol (e.g., 'AAPL').
         start_date (str): Start date for the data in 'YYYY-MM-DD' format.
         end_date (str): End date for the data in 'YYYY-MM-DD' format.
-        save_dir (str): Directory where the data should be saved.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the stock data.
     """
     stock = yf.Ticker(ticker)
     df = stock.history(start=start_date, end=end_date)
@@ -36,14 +56,7 @@ def download_stock_data(ticker, start_date, end_date, save_dir):
     if df.empty:
         raise ValueError(f"No data found for ticker {ticker} between {start_date} and {end_date}")
 
-    # Ensure save directory exists
-    os.makedirs(save_dir, exist_ok=True)
-
-    # Save the data as a CSV file with the date in the filename
-    output_file = os.path.join(save_dir, f"{ticker}_{end_date}.csv")
-    df.to_csv(output_file)
-
-    print(f"Data downloaded for {ticker} and saved to {output_file}")
+    return df
 
 def get_yesterday():
     """
@@ -54,9 +67,9 @@ def get_yesterday():
     """
     return (datetime.now() - timedelta(1)).strftime('%Y-%m-%d')
 
-def download_data_now():
+def download_and_upload_data(event, context):
     """
-    Function to download data immediately for all tickers.
+    Function to download data and upload it to S3.
     """
     tickers = [
         "AAPL",  # Apple
@@ -74,17 +87,24 @@ def download_data_now():
     start_date = "2000-01-01"
     end_date = get_yesterday()  # Fetch data until yesterday
 
-    # Remove previous day's files
-    delete_all_files(raw_data_dir)
+    # Remove previous day's files in S3
+    delete_previous_day_s3_files(S3_BUCKET_NAME, S3_RAW_DATA_FOLDER)
 
-    # Download data for each ticker and save it to the raw data directory
+    # Download and upload data for each ticker
     for ticker in tickers:
         try:
-            download_stock_data(ticker, start_date, end_date, raw_data_dir)
+            # Download stock data
+            df = download_stock_data(ticker, start_date, end_date)
+
+            # Define S3 key (path) for the file
+            s3_key = f"{S3_RAW_DATA_FOLDER}{ticker}_{end_date}.csv"
+
+            # Upload the data to S3
+            upload_to_s3(S3_BUCKET_NAME, s3_key, df)
+
         except ValueError as e:
             print(e)
 
-if __name__ == "__main__":
-    # Download data right now
-    download_data_now()
-
+# Lambda handler
+def lambda_handler(event, context):
+    download_and_upload_data(event, context)

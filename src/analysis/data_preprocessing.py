@@ -1,66 +1,38 @@
 import os
 import pandas as pd
+import boto3
 from datetime import datetime, timedelta
-import shutil
+from io import StringIO
 
+# S3 bucket and folder configuration
+S3_BUCKET_NAME = 'your-bucket-name'
+S3_RAW_DATA_FOLDER = 'data/raw/'
+S3_PROCESSED_DATA_FOLDER = 'data/processed/'
 
-# Directory for raw and processed data
-raw_data_dir = 'src/data/raw'
-processed_data_dir = 'src/data/processed'
+# Initialize the S3 client
+s3 = boto3.client('s3', region_name='eu-central-1')
 
-# Create necessary directories if they don't exist
-os.makedirs(raw_data_dir, exist_ok=True)
-os.makedirs(processed_data_dir, exist_ok=True)
-
-def delete_all_files(directory):
-    for filename in os.listdir(directory):
-        file_path = os.path.join(directory, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f"Failed to delete {file_path}. Reason: {e}")
-
-def preprocess_data(ticker, date_str):
+def delete_previous_day_s3_files(bucket_name, folder_prefix):
     """
-    Process the raw data for a specific ticker and date and save the processed data.
+    Delete all files in the S3 bucket from the previous day.
 
     Args:
-        ticker (str): The ticker symbol of the stock.
-        date_str (str): The date string in 'YYYY-MM-DD' format.
+        bucket_name (str): The S3 bucket name.
+        folder_prefix (str): The folder prefix to list the files.
     """
-    raw_file = os.path.join(raw_data_dir, f"{ticker}_{date_str}.csv")
+    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=folder_prefix)
+    if 'Contents' in response:
+        for obj in response['Contents']:
+            print(f"Deleting {obj['Key']}")
+            s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
 
-    if os.path.exists(raw_file):
-        # Load the raw data
-        df = pd.read_csv(raw_file)
-
-        # Example preprocessing: calculate moving averages and other features
-        df['MA_50'] = df['Close'].rolling(window=50).mean()
-        df['MA_200'] = df['Close'].rolling(window=200).mean()
-
-        # Save the processed data
-        processed_file = os.path.join(processed_data_dir, f"{ticker}_{date_str}.csv")
-        df.to_csv(processed_file, index=False)
-
-        print(f"Data processed for {ticker} and saved to {processed_file}")
-    else:
-        print(f"No raw data found for {ticker} on {date_str}")
-
-def get_yesterday():
+def preprocess_data_from_s3(event, context):
     """
-    Get yesterday's date as a string in 'YYYY-MM-DD' format.
+    Lambda function to preprocess stock data fetched from S3.
 
-    Returns:
-        str: Yesterday's date.
-    """
-    return (datetime.now() - timedelta(1)).strftime('%Y-%m-%d')
-
-def preprocess_data_now():
-    """
-    Function to preprocess data immediately for all tickers.
+    Args:
+        event: The event data passed by the invoking Lambda function.
+        context: The runtime information of the Lambda function.
     """
     tickers = [
         "AAPL",  # Apple
@@ -77,14 +49,39 @@ def preprocess_data_now():
 
     end_date = get_yesterday()  # Process data from yesterday
 
-    # Remove previous day's files
-    delete_all_files(processed_data_dir)
+    # Remove previous day's processed files in S3
+    delete_previous_day_s3_files(S3_BUCKET_NAME, S3_PROCESSED_DATA_FOLDER)
 
-    # Preprocess data for each ticker and save it to the processed data directory
+    # Preprocess data for each ticker
     for ticker in tickers:
-        preprocess_data(ticker, end_date)
+        try:
+            raw_key = f"{S3_RAW_DATA_FOLDER}{ticker}_{end_date}.csv"
+            response = s3.get_object(Bucket=S3_BUCKET_NAME, Key=raw_key)
+            df = pd.read_csv(response['Body'])
 
-if __name__ == "__main__":
-    # Preprocess data right now
-    preprocess_data_now()
+            # Example preprocessing: calculate moving averages and other features
+            df['MA_50'] = df['Close'].rolling(window=50).mean()
+            df['MA_200'] = df['Close'].rolling(window=200).mean()
 
+            # Save the processed data back to S3
+            processed_key = f"{S3_PROCESSED_DATA_FOLDER}{ticker}_{end_date}.csv"
+            csv_buffer = StringIO()
+            df.to_csv(csv_buffer, index=False)
+            s3.put_object(Bucket=S3_BUCKET_NAME, Key=processed_key, Body=csv_buffer.getvalue())
+
+            print(f"Data processed for {ticker} and saved to {processed_key}")
+        except Exception as e:
+            print(f"Failed to process data for {ticker}. Reason: {str(e)}")
+
+def get_yesterday():
+    """
+    Get yesterday's date as a string in 'YYYY-MM-DD' format.
+
+    Returns:
+        str: Yesterday's date.
+    """
+    return (datetime.now() - timedelta(1)).strftime('%Y-%m-%d')
+
+# Lambda handler
+def lambda_handler(event, context):
+    preprocess_data_from_s3(event, context)
