@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from io import StringIO
 
 # S3 bucket and folder configuration
-S3_BUCKET_NAME = 'your-bucket-name'
+S3_BUCKET_NAME = 'stock-prediction-app-bucket-1'
 S3_RAW_DATA_FOLDER = 'data/raw/'
 S3_PROCESSED_DATA_FOLDER = 'data/processed/'
 

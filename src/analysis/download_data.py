@@ -4,7 +4,7 @@ import boto3
 from io import StringIO
 
 # S3 bucket and folder configuration
-S3_BUCKET_NAME = 'your-bucket-name'  # Replace with your actual S3 bucket name
+S3_BUCKET_NAME = 'stock-prediction-app-bucket-1'
 S3_RAW_DATA_FOLDER = 'data/raw/'  # Folder path in S3 where raw data will be stored
 
 # Initialize the S3 client
